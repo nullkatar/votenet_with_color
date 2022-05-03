@@ -36,7 +36,7 @@ sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 sys.path.append(os.path.join(ROOT_DIR, 'pointnet2'))
 sys.path.append(os.path.join(ROOT_DIR, 'models'))
 from pytorch_utils import BNMomentumScheduler
-from tf_visualizer import Visualizer as TfVisualizer
+# from tf_visualizer import Visualizer as TfVisualizer
 from ap_helper import APCalculator, parse_predictions, parse_groundtruths
 
 parser = argparse.ArgumentParser()
@@ -161,7 +161,8 @@ net = Detector(num_class=DATASET_CONFIG.num_class,
                num_proposal=FLAGS.num_target,
                input_feature_dim=num_input_channel,
                vote_factor=FLAGS.vote_factor,
-               sampling=FLAGS.cluster_sampling)
+               sampling=FLAGS.cluster_sampling,
+               num_clrs=DATASET_CONFIG.num_clrs)
 
 if torch.cuda.device_count() > 1:
   log_string("Let's use %d GPUs!" % (torch.cuda.device_count()))
@@ -203,8 +204,8 @@ def adjust_learning_rate(optimizer, epoch):
         param_group['lr'] = lr
 
 # TFBoard Visualizers
-TRAIN_VISUALIZER = TfVisualizer(FLAGS, 'train')
-TEST_VISUALIZER = TfVisualizer(FLAGS, 'test')
+# TRAIN_VISUALIZER = TfVisualizer(FLAGS, 'train')
+# TEST_VISUALIZER = TfVisualizer(FLAGS, 'test')
 
 
 # Used for AP calculation
@@ -223,7 +224,7 @@ def train_one_epoch():
     for batch_idx, batch_data_label in enumerate(TRAIN_DATALOADER):
         for key in batch_data_label:
             batch_data_label[key] = batch_data_label[key].to(device)
-
+        
         # Forward pass
         optimizer.zero_grad()
         inputs = {'point_clouds': batch_data_label['point_clouds']}
@@ -233,6 +234,8 @@ def train_one_epoch():
         for key in batch_data_label:
             assert(key not in end_points)
             end_points[key] = batch_data_label[key]
+
+            
         loss, end_points = criterion(end_points, DATASET_CONFIG)
         loss.backward()
         optimizer.step()
@@ -246,8 +249,8 @@ def train_one_epoch():
         batch_interval = 10
         if (batch_idx+1) % batch_interval == 0:
             log_string(' ---- batch: %03d ----' % (batch_idx+1))
-            TRAIN_VISUALIZER.log_scalars({key:stat_dict[key]/batch_interval for key in stat_dict},
-                (EPOCH_CNT*len(TRAIN_DATALOADER)+batch_idx)*BATCH_SIZE)
+#             TRAIN_VISUALIZER.log_scalars({key:stat_dict[key]/batch_interval for key in stat_dict},
+#                 (EPOCH_CNT*len(TRAIN_DATALOADER)+batch_idx)*BATCH_SIZE)
             for key in sorted(stat_dict.keys()):
                 log_string('mean %s: %f'%(key, stat_dict[key]/batch_interval))
                 stat_dict[key] = 0
@@ -285,12 +288,12 @@ def evaluate_one_epoch():
         ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
 
         # Dump evaluation results for visualization
-        if FLAGS.dump_results and batch_idx == 0 and EPOCH_CNT %10 == 0:
-            MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG) 
+#         if FLAGS.dump_results and batch_idx == 0 and EPOCH_CNT %10 == 0:
+#             MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG) 
 
     # Log statistics
-    TEST_VISUALIZER.log_scalars({key:stat_dict[key]/float(batch_idx+1) for key in stat_dict},
-        (EPOCH_CNT+1)*len(TRAIN_DATALOADER)*BATCH_SIZE)
+#     TEST_VISUALIZER.log_scalars({key:stat_dict[key]/float(batch_idx+1) for key in stat_dict},
+#         (EPOCH_CNT+1)*len(TRAIN_DATALOADER)*BATCH_SIZE)
     for key in sorted(stat_dict.keys()):
         log_string('eval mean %s: %f'%(key, stat_dict[key]/(float(batch_idx+1))))
 

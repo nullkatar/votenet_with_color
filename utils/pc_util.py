@@ -197,11 +197,24 @@ def read_ply(filename):
     pc_array = np.array([[x, y, z] for x,y,z in pc])
     return pc_array
 
+def write_ply_cls(points, filename, text=True):
+    """ input: Nx3, write points to filename as PLY format. """
+    vertex = np.array(points, dtype=[('cls', 'int8')])
+    el = PlyElement.describe(vertex, 'vertex', comments=['vertices'])
+    PlyData([el], text=text).write(filename)
 
 def write_ply(points, filename, text=True):
     """ input: Nx3, write points to filename as PLY format. """
     points = [(points[i,0], points[i,1], points[i,2]) for i in range(points.shape[0])]
     vertex = np.array(points, dtype=[('x', 'f4'), ('y', 'f4'),('z', 'f4')])
+    el = PlyElement.describe(vertex, 'vertex', comments=['vertices'])
+    PlyData([el], text=text).write(filename)
+
+
+def write_ply_leon(points, filename, text=True):
+    """ input: Nx7, write points to filename as PLY format. """
+    points = [(points[i,0], points[i,1], points[i,2], points[i,3], points[i,4], points[i,5], points[i,6]) for i in range(points.shape[0])]
+    vertex = np.array(points, dtype=[('red', 'f4'), ('green', 'f4'),('blue', 'f4'), ('objectId', 'f4'), ('categoryId', 'f4'), ('NYU40', 'f4'), ('mpr40', 'f4')])
     el = PlyElement.describe(vertex, 'vertex', comments=['vertices'])
     PlyData([el], text=text).write(filename)
 

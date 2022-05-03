@@ -42,7 +42,7 @@ class VoteNet(nn.Module):
             Number of votes generated from each seed point.
     """
 
-    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr,
+    def __init__(self, num_class, num_clrs, num_heading_bin, num_size_cluster, mean_size_arr,
         input_feature_dim=0, num_proposal=128, vote_factor=1, sampling='vote_fps'):
         super().__init__()
 
@@ -64,7 +64,7 @@ class VoteNet(nn.Module):
 
         # Vote aggregation and detection
         self.pnet = ProposalModule(num_class, num_heading_bin, num_size_cluster,
-            mean_size_arr, num_proposal, sampling)
+            mean_size_arr, num_proposal, sampling, num_clrs)
 
     def forward(self, inputs):
         """ Forward pass of the network
@@ -100,7 +100,7 @@ class VoteNet(nn.Module):
         end_points['vote_features'] = features
 
         end_points = self.pnet(xyz, features, end_points)
-
+                
         return end_points
 
 

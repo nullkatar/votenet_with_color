@@ -83,15 +83,16 @@ elif FLAGS.dataset == 'scannet':
     from scannet_detection_dataset import ScannetDetectionDataset, MAX_NUM_OBJ
     from model_util_scannet import ScannetDatasetConfig
     DATASET_CONFIG = ScannetDatasetConfig()
-    TEST_DATASET = ScannetDetectionDataset('val', num_points=NUM_POINT,
+    TEST_DATASET = ScannetDetectionDataset('test', num_points=NUM_POINT,
         augment=False,
         use_color=FLAGS.use_color, use_height=(not FLAGS.no_height))
 else:
     print('Unknown dataset %s. Exiting...'%(FLAGS.dataset))
     exit(-1)
 print(len(TEST_DATASET))
+
 TEST_DATALOADER = DataLoader(TEST_DATASET, batch_size=BATCH_SIZE,
-    shuffle=FLAGS.shuffle_dataset, num_workers=4, worker_init_fn=my_worker_init_fn)
+    shuffle=FLAGS.shuffle_dataset, num_workers=8, worker_init_fn=my_worker_init_fn)
 
 # Init the model and optimzier
 MODEL = importlib.import_module(FLAGS.model) # import network module
@@ -110,7 +111,10 @@ net = Detector(num_class=DATASET_CONFIG.num_class,
                num_proposal=FLAGS.num_target,
                input_feature_dim=num_input_channel,
                vote_factor=FLAGS.vote_factor,
-               sampling=FLAGS.cluster_sampling)
+               sampling=FLAGS.cluster_sampling,
+               num_clrs=DATASET_CONFIG.num_clrs)
+               
+               
 net.to(device)
 criterion = MODEL.get_loss
 
@@ -146,13 +150,13 @@ def evaluate_one_epoch():
         inputs = {'point_clouds': batch_data_label['point_clouds']}
         with torch.no_grad():
             end_points = net(inputs)
-
+                
         # Compute loss
         for key in batch_data_label:
             assert(key not in end_points)
             end_points[key] = batch_data_label[key]
         loss, end_points = criterion(end_points, DATASET_CONFIG)
-
+        
         # Accumulate statistics and print out
         for key in end_points:
             if 'loss' in key or 'acc' in key or 'ratio' in key:
@@ -164,9 +168,11 @@ def evaluate_one_epoch():
         for ap_calculator in ap_calculator_list:
             ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
     
-        # Dump evaluation results for visualization
-        if batch_idx == 0:
-            MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG)
+#         Dump evaluation results for visualization
+        file_ind = [i[5:-1] for i in open('/localhome/lkochiev/Documents/SFU/votenet/scannet/meta_data/scannetv1_test.txt').readlines()]
+        for i in end_points['scan_idx']:
+            if  TEST_DATASET.scan_names[i][5:] in file_ind:
+                MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG, TEST_DATASET.scan_names[i][5:], i - min(end_points['scan_idx']))
 
     # Log statistics
     for key in sorted(stat_dict.keys()):
@@ -178,7 +184,7 @@ def evaluate_one_epoch():
         metrics_dict = ap_calculator.compute_metrics()
         for key in metrics_dict:
             log_string('eval %s: %f'%(key, metrics_dict[key]))
-
+    
     mean_loss = stat_dict['loss']/float(batch_idx+1)
     return mean_loss
 

@@ -63,13 +63,17 @@ def read_mesh_vertices_rgb(filename):
     with open(filename, 'rb') as f:
         plydata = PlyData.read(f)
         num_verts = plydata['vertex'].count
-        vertices = np.zeros(shape=[num_verts, 6], dtype=np.float32)
+        vertices = np.zeros(shape=[num_verts, 10], dtype=np.float32)
         vertices[:,0] = plydata['vertex'].data['x']
         vertices[:,1] = plydata['vertex'].data['y']
         vertices[:,2] = plydata['vertex'].data['z']
         vertices[:,3] = plydata['vertex'].data['red']
         vertices[:,4] = plydata['vertex'].data['green']
         vertices[:,5] = plydata['vertex'].data['blue']
+        vertices[:,6] = plydata['vertex'].data['categoryId']
+        vertices[:,7] = plydata['vertex'].data['objectId']
+        vertices[:,8] = plydata['vertex'].data['NYU40']
+        vertices[:,9] = plydata['vertex'].data['mpr40']
     return vertices
 
 

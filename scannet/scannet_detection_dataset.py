@@ -35,8 +35,11 @@ class ScannetDetectionDataset(Dataset):
         if split_set=='all':            
             self.scan_names = all_scan_names
         elif split_set in ['train', 'val', 'test']:
+#             split_filenames = os.path.join(ROOT_DIR, 'scannet/meta_data',
+#                 'scannetv2_{}.txt'.format(split_set))
             split_filenames = os.path.join(ROOT_DIR, 'scannet/meta_data',
-                'scannetv2_{}.txt'.format(split_set))
+                'scannetv1_{}_spec.txt'.format(split_set))
+
             with open(split_filenames, 'r') as f:
                 self.scan_names = f.read().splitlines()   
             # remove unavailiable scans
@@ -63,6 +66,7 @@ class ScannetDetectionDataset(Dataset):
             point_clouds: (N,3+C)
             center_label: (MAX_NUM_OBJ,3) for GT box center XYZ
             sem_cls_label: (MAX_NUM_OBJ,) semantic class index
+            sem_clr_label: (MAX_NUM_OBJ,3) color of object
             angle_class_label: (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
             angle_residual_label: (MAX_NUM_OBJ,)
             size_classe_label: (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
@@ -78,11 +82,11 @@ class ScannetDetectionDataset(Dataset):
         mesh_vertices = np.load(os.path.join(self.data_path, scan_name)+'_vert.npy')
         instance_labels = np.load(os.path.join(self.data_path, scan_name)+'_ins_label.npy')
         semantic_labels = np.load(os.path.join(self.data_path, scan_name)+'_sem_label.npy')
-        instance_bboxes = np.load(os.path.join(self.data_path, scan_name)+'_bbox.npy')
+        instance_bboxes = np.load(os.path.join(self.data_path, scan_name)+'_bbox.npy') 
 
         if not self.use_color:
             point_cloud = mesh_vertices[:,0:3] # do not use color for now
-            pcl_color = mesh_vertices[:,3:6]
+            pcl_color = mesh_vertices[:,3:]
         else:
             point_cloud = mesh_vertices[:,0:6] 
             point_cloud[:,3:] = (point_cloud[:,3:]-MEAN_COLOR_RGB)/256.0
@@ -100,12 +104,15 @@ class ScannetDetectionDataset(Dataset):
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
         
+                
         point_cloud, choices = pc_util.random_sampling(point_cloud,
-            self.num_points, return_choices=True)        
+            self.num_points, return_choices=True)  
+        mesh_vertices = mesh_vertices[choices]
         instance_labels = instance_labels[choices]
         semantic_labels = semantic_labels[choices]
         
-        pcl_color = pcl_color[choices]
+        if not self.use_color:
+            pcl_color = pcl_color[choices]
         
         target_bboxes_mask[0:instance_bboxes.shape[0]] = 1
         target_bboxes[0:instance_bboxes.shape[0],:] = instance_bboxes[:,0:6]
@@ -162,13 +169,28 @@ class ScannetDetectionDataset(Dataset):
         ret_dict['size_residual_label'] = size_residuals.astype(np.float32)
         target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))                                
         target_bboxes_semcls[0:instance_bboxes.shape[0]] = \
-            [DC.nyu40id2class[x] for x in instance_bboxes[:,-1][0:instance_bboxes.shape[0]]]                
+            [DC.nyu40id2class[x] for x in instance_bboxes[:,-1][0:instance_bboxes.shape[0]]]    
         ret_dict['sem_cls_label'] = target_bboxes_semcls.astype(np.int64)
+        
+        mean_colors = np.zeros((MAX_NUM_OBJ, 3))
+        obj_ids = instance_bboxes[:,-1]
+
+        for i in range(len(obj_ids)):
+            obj_id = obj_ids[i]
+            mean_colors[int(i)] = np.mean(mesh_vertices[instance_labels==obj_id, 3:6], axis=0) #/256.0
+            
+            if sum(np.isnan(mean_colors[int(i)])) > 0:
+                mean_colors[int(i)] = np.array((0,0,0))
+
+        ret_dict['sem_clr_label'] = mean_colors.astype(np.float32)
+        
+        
         ret_dict['box_label_mask'] = target_bboxes_mask.astype(np.float32)
         ret_dict['vote_label'] = point_votes.astype(np.float32)
         ret_dict['vote_label_mask'] = point_votes_mask.astype(np.int64)
         ret_dict['scan_idx'] = np.array(idx).astype(np.int64)
-        ret_dict['pcl_color'] = pcl_color
+        if not self.use_color:
+            ret_dict['pcl_color'] = pcl_color
         return ret_dict
         
 ############# Visualizaion ########

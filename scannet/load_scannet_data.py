@@ -98,7 +98,8 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
             instance_ids[verts] = object_id
             if object_id not in object_id_to_label_id:
                 object_id_to_label_id[object_id] = label_ids[verts][0]
-    instance_bboxes = np.zeros((num_instances,7))
+    instance_bboxes = np.zeros((num_instances,8))
+
     for obj_id in object_id_to_segs:
         label_id = object_id_to_label_id[obj_id]
         obj_pc = mesh_vertices[instance_ids==obj_id, 0:3]
@@ -115,7 +116,7 @@ def export(mesh_file, agg_file, seg_file, meta_file, label_map_file, output_file
         ymax = np.max(obj_pc[:,1])
         zmax = np.max(obj_pc[:,2])
         bbox = np.array([(xmin+xmax)/2, (ymin+ymax)/2, (zmin+zmax)/2,
-            xmax-xmin, ymax-ymin, zmax-zmin, label_id])
+            xmax-xmin, ymax-ymin, zmax-zmin, label_id, obj_id])
         # NOTE: this assumes obj_id is in 1,2,3,.,,,.NUM_INSTANCES
         instance_bboxes[obj_id-1,:] = bbox 
 

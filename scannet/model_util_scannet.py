@@ -15,6 +15,7 @@ from box_util import get_3d_box
 class ScannetDatasetConfig(object):
     def __init__(self):
         self.num_class = 18
+        self.num_clrs = 3 #25
         self.num_heading_bin = 1
         self.num_size_cluster = 18
 

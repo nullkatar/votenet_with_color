@@ -181,7 +181,13 @@ def compute_box_and_sem_cls_loss(end_points, config):
     sem_cls_loss = criterion_sem_cls(end_points['sem_cls_scores'].transpose(2,1), sem_cls_label) # (B,K)
     sem_cls_loss = torch.sum(sem_cls_loss * objectness_label)/(torch.sum(objectness_label)+1e-6)
 
-    return center_loss, heading_class_loss, heading_residual_normalized_loss, size_class_loss, size_residual_normalized_loss, sem_cls_loss
+    #Color loss
+    criterion_sem_clr = nn.MSELoss()
+    object_assignment_clr = object_assignment.expand(3, object_assignment.shape[0], object_assignment.shape[1]).permute(1,2,0)
+    sem_clr_label = torch.gather(end_points['sem_clr_label'], 1, object_assignment_clr)
+    sem_clr_loss =  criterion_sem_clr(end_points['sem_clr_scores'], sem_clr_label) # (B,K)
+    
+    return center_loss, heading_class_loss, heading_residual_normalized_loss, size_class_loss, size_residual_normalized_loss, sem_cls_loss, sem_clr_loss
 
 def get_loss(end_points, config):
     """ Loss functions
@@ -225,7 +231,7 @@ def get_loss(end_points, config):
         torch.sum(objectness_mask.float())/float(total_num_proposal) - end_points['pos_ratio']
 
     # Box loss and sem cls loss
-    center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss = \
+    center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss, sem_clr_loss = \
         compute_box_and_sem_cls_loss(end_points, config)
     end_points['center_loss'] = center_loss
     end_points['heading_cls_loss'] = heading_cls_loss
@@ -233,11 +239,12 @@ def get_loss(end_points, config):
     end_points['size_cls_loss'] = size_cls_loss
     end_points['size_reg_loss'] = size_reg_loss
     end_points['sem_cls_loss'] = sem_cls_loss
+    end_points['sem_clr_loss'] = sem_clr_loss
     box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + 0.1*size_cls_loss + size_reg_loss
     end_points['box_loss'] = box_loss
 
     # Final loss function
-    loss = vote_loss + 0.5*objectness_loss + box_loss + 0.1*sem_cls_loss
+    loss = vote_loss + 0.5*objectness_loss + box_loss + 0.1*sem_cls_loss + 0.0001*sem_clr_loss
     loss *= 10
     end_points['loss'] = loss
 

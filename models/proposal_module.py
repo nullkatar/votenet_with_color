@@ -15,7 +15,7 @@ sys.path.append(os.path.join(ROOT_DIR, 'pointnet2'))
 from pointnet2_modules import PointnetSAModuleVotes
 import pointnet2_utils
 
-def decode_scores(net, end_points, num_class, num_heading_bin, num_size_cluster, mean_size_arr):
+def decode_scores(net, color, end_points, num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_clrs):
     net_transposed = net.transpose(2,1) # (batch_size, 1024, ..)
     batch_size = net_transposed.shape[0]
     num_proposal = net_transposed.shape[1]
@@ -39,13 +39,23 @@ def decode_scores(net, end_points, num_class, num_heading_bin, num_size_cluster,
     end_points['size_residuals_normalized'] = size_residuals_normalized
     end_points['size_residuals'] = size_residuals_normalized * torch.from_numpy(mean_size_arr.astype(np.float32)).cuda().unsqueeze(0).unsqueeze(0)
 
-    sem_cls_scores = net_transposed[:,:,5+num_heading_bin*2+num_size_cluster*4:] # Bxnum_proposalx10
+#     sem_cls_scores = net_transposed[:,:,5+num_heading_bin*2+num_size_cluster*4:] # Bxnum_proposalx10
+#     end_points['sem_cls_scores'] = sem_cls_scores
+
+    #LEON WROTE IT
+    
+    sem_cls_scores = net_transposed[:,:,5+num_heading_bin*2+num_size_cluster*4:-num_clrs] # Bxnum_proposalx10    
     end_points['sem_cls_scores'] = sem_cls_scores
+
+    sem_clr_scores = color #net_transposed[:,:,-num_clrs:]
+    end_points['sem_clr_scores'] = sem_clr_scores
+    
+#     import pdb; pdb.set_trace()
     return end_points
 
 
 class ProposalModule(nn.Module):
-    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, seed_feat_dim=256):
+    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling, num_clrs, seed_feat_dim=256):
         super().__init__() 
 
         self.num_class = num_class
@@ -55,7 +65,9 @@ class ProposalModule(nn.Module):
         self.num_proposal = num_proposal
         self.sampling = sampling
         self.seed_feat_dim = seed_feat_dim
+        self.num_clrs = num_clrs
 
+        # import pdb; pdb.set_trace()
         # Vote clustering
         self.vote_aggregation = PointnetSAModuleVotes( 
                 npoint=self.num_proposal,
@@ -71,7 +83,11 @@ class ProposalModule(nn.Module):
         # heading class+residual (num_heading_bin*2), size class+residual(num_size_cluster*4)
         self.conv1 = torch.nn.Conv1d(128,128,1)
         self.conv2 = torch.nn.Conv1d(128,128,1)
-        self.conv3 = torch.nn.Conv1d(128,2+3+num_heading_bin*2+num_size_cluster*4+self.num_class,1)
+#         self.conv3 = torch.nn.Conv1d(128,2+3+num_heading_bin*2+num_size_cluster*4+self.num_class,1)
+        self.conv3 = torch.nn.Conv1d(128,2+3+num_heading_bin*2+num_size_cluster*4+self.num_class+self.num_clrs,1)
+        self.dummy_learner = torch.nn.Sequential(torch.nn.Linear(3,100),
+                                                torch.nn.LeakyReLU(),
+                                                torch.nn.Linear(100,3))
         self.bn1 = torch.nn.BatchNorm1d(128)
         self.bn2 = torch.nn.BatchNorm1d(128)
 
@@ -108,8 +124,8 @@ class ProposalModule(nn.Module):
         net = F.relu(self.bn1(self.conv1(features))) 
         net = F.relu(self.bn2(self.conv2(net))) 
         net = self.conv3(net) # (batch_size, 2+3+num_heading_bin*2+num_size_cluster*4, num_proposal)
-
-        end_points = decode_scores(net, end_points, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr)
+        color = self.dummy_learner(net[:,-3:,:].transpose(2,1))
+        end_points = decode_scores(net, color, end_points, self.num_class, self.num_heading_bin, self.num_size_cluster, self.mean_size_arr, self.num_clrs)
         return end_points
 
 if __name__=='__main__':
