@@ -1,0 +1,5 @@
+**.pyc
+**.o
+**.so
+**.egg
+**/pointnet2/pointnet2.egg-info/**
