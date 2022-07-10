@@ -12,14 +12,21 @@ import os
 import sys
 import numpy as np
 from torch.utils.data import Dataset
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--splits_path", type=float, help="path to satfaces.txt file", default = "/localhome/lkochiev/privatemodules/3DVQA/3dvqa/dataset/splits")
+args = parser.parse_args()
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-import pc_util
-from model_util_scannet import rotate_aligned_boxes
 
-from model_util_scannet import ScannetDatasetConfig
+import pc_util
+from votenet_with_color.scannet.model_util_scannet import rotate_aligned_boxes
+from votenet_with_color.scannet.model_util_scannet import ScannetDatasetConfig
+
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 64
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
@@ -35,11 +42,7 @@ class ScannetDetectionDataset(Dataset):
         if split_set=='all':            
             self.scan_names = all_scan_names
         elif split_set in ['train', 'val', 'test']:
-#             split_filenames = os.path.join(ROOT_DIR, 'scannet/meta_data',
-#                 'scannetv2_{}.txt'.format(split_set))
-            split_filenames = os.path.join(ROOT_DIR, 'scannet/meta_data',
-                'scannetv1_{}_spec.txt'.format(split_set))
-
+            split_filenames = os.path.join(args.splits_path, 'scannetv1_{}.txt'.format(split_set))
             with open(split_filenames, 'r') as f:
                 self.scan_names = f.read().splitlines()   
             # remove unavailiable scans

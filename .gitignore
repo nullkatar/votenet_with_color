@@ -3,3 +3,4 @@
 **.so
 **.egg
 **/pointnet2/pointnet2.egg-info/**
+scannet/scannet_train_detection_data
